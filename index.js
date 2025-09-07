@@ -1,26 +1,34 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const urlRoutes = require('./routes/urls'); // use plural 'urls'
+const urlRoutes = require('./routes/urls');
+const path = require('path');
 
 const app = express();
 
-// ✅ Use PORT from .env, fallback to 5000 if not set
+// Port (Render assigns via env)
 const PORT = process.env.PORT || 5000;
 
-// Connect to MongoDB
+// MongoDB connection
 mongoose.connect(process.env.MONGO_URI)
-    .then(() => console.log('Successfully connected to MongoDB.'))
+    .then(() => console.log('MongoDB connected'))
     .catch(err => console.error('MongoDB connection error:', err));
 
-// Set up middleware
+// Middleware
 app.set('view engine', 'ejs');
+app.set('views', path.join(__dirname, 'views'));
 app.use(express.urlencoded({ extended: true }));
+app.use(express.static(path.join(__dirname, 'public'))); // serve static files
 
-// Use router for all root requests
+// Routes
 app.use('/', urlRoutes);
 
-// Start the server
+// Catch-all 404
+app.use((req, res) => {
+    res.status(404).render('404');
+});
+
+// Start server
 app.listen(PORT, () => {
-    console.log(`Server is running on ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
+    console.log(`Server running on ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
 });
