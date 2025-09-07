@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { nanoid } = require('nanoid');
 const validUrl = require('valid-url');
-const Url = require('../models/Url');
+const Url = require('../models/url');
 
 // Base URL (change to your domain in production)
 const getBaseUrl = () => process.env.BASE_URL || 'http://localhost:3000';
