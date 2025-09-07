@@ -1,52 +1,76 @@
 const express = require('express');
-const { nanoid } = require('nanoid');
-const Url = require('../models/url');
-
 const router = express.Router();
+const { nanoid } = require('nanoid');
+const validUrl = require('valid-url');
+const Url = require('../models/Url');
 
-// GET / -> Renders the homepage
+// Base URL (change to your domain in production)
+const getBaseUrl = () => process.env.BASE_URL || 'http://localhost:3000';
+
+// Render main page
 router.get('/', (req, res) => {
-    // THE FIX IS HERE: We must pass `baseUrl` to the template
-    res.render('index', { 
-        error: null, 
-        shortUrl: null,
-        baseUrl: process.env.BASE_URL || 'http://localhost:3000' // Pass the base URL
-    });
+    res.render('index', { error: null, url: null, baseUrl: getBaseUrl() });
 });
 
-// POST /shorten -> Creates a new short link
+// Handle URL shortening
 router.post('/shorten', async (req, res) => {
-    const { longUrl, customCode } = req.body;
-    let shortCode;
+    let { longUrl, customCode } = req.body;
+    let shortCode = customCode ? customCode.trim().toLowerCase() : nanoid(7);
 
     try {
-        if (customCode) {
-            const existing = await Url.findOne({ shortCode: customCode });
-            if (existing) {
-                // If custom name is taken, render the page again with an error
-                return res.render('index', {
-                    error: 'Sorry, that custom name is already taken.',
-                    shortUrl: null,
-                    baseUrl: process.env.BASE_URL || 'http://localhost:3000'
-                });
-            }
-            shortCode = customCode;
-        } else {
-            shortCode = nanoid(7);
+        // Validate URL
+        if (!validUrl.isUri(longUrl)) {
+            return res.render('index', { 
+                error: 'Invalid URL. Please enter a valid one (e.g., https://example.com)',
+                url: null,
+                baseUrl: getBaseUrl()
+            });
         }
 
-        const newUrl = new Url({
-            longUrl,
-            shortCode
-        });
+        // Prevent duplicate custom codes
+        if (customCode) {
+            const existing = await Url.findOne({ shortCode });
+            if (existing) {
+                return res.render('index', { 
+                    error: 'Sorry, that custom name is already taken.',
+                    url: null,
+                    baseUrl: getBaseUrl()
+                });
+            }
+        }
 
+        // Reuse existing long URL if no custom code
+        let url = await Url.findOne({ longUrl });
+        if (url && !customCode) {
+            return res.render('index', { error: null, url, baseUrl: getBaseUrl() });
+        }
+
+        // Create new URL
+        const newUrl = new Url({ longUrl, shortCode });
         await newUrl.save();
 
-        res.render('index', {
-            error: null,
-            shortUrl: `${process.env.BASE_URL}/${shortCode}`,
-            baseUrl: process.env.BASE_URL || 'http://localhost:3000'
-        });
+        res.render('index', { error: null, url: newUrl, baseUrl: getBaseUrl() });
+
+    } catch (err) {
+        console.error(err);
+        res.status(500).render('404');
+    }
+});
+
+// Redirect short URL to original long URL
+router.get('/:shortCode', async (req, res) => {
+    try {
+        const url = await Url.findOne({ shortCode: req.params.shortCode });
+        if (!url) return res.status(404).render('404');
+
+        // Analytics tracking
+        url.clickCount++;
+        url.lastAccessed = new Date();
+        url.userAgent = req.headers['user-agent'];
+        url.lastIp = req.ip;
+        await url.save();
+
+        res.redirect(url.longUrl);
 
     } catch (err) {
         console.error(err);
@@ -54,22 +78,4 @@ router.post('/shorten', async (req, res) => {
     }
 });
 
-// GET /:shortCode -> Redirects to the long URL
-router.get('/:shortCode', async (req, res) => {
-    try {
-        const url = await Url.findOne({ shortCode: req.params.shortCode });
-        if (url) {
-            url.clickCount++;
-            await url.save();
-            return res.redirect(url.longUrl);
-        } else {
-            return res.status(404).render('404');
-        }
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('Server error');
-    }
-});
-
 module.exports = router;
-

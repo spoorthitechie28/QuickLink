@@ -1,10 +1,12 @@
 require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
-const urlRoutes = require('./routes/urls'); // Import the router file
+const urlRoutes = require('./routes/urls'); // use plural 'urls'
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+
+// ✅ Use PORT from .env, fallback to 5000 if not set
+const PORT = process.env.PORT || 5000;
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
@@ -15,13 +17,10 @@ mongoose.connect(process.env.MONGO_URI)
 app.set('view engine', 'ejs');
 app.use(express.urlencoded({ extended: true }));
 
-// --- MAIN FIX ---
-// Tell Express to use the 'urlRoutes' for all incoming requests to the root path '/'
-// This replaces the old app.get('/') that was causing the error.
+// Use router for all root requests
 app.use('/', urlRoutes);
 
 // Start the server
 app.listen(PORT, () => {
-    console.log(`Server is running on http://localhost:${PORT}`);
+    console.log(`Server is running on ${process.env.BASE_URL || `http://localhost:${PORT}`}`);
 });
-
